@@ -166,6 +166,8 @@ enum NotchEqualizerTests {
         let pose: [CGFloat] = [4, 8, 12, 16, 12, 8, 4]
         arrived.adopt(heights: pose)
         expect(arrived.barHeights() == pose, "the arriving island takes the bars already on that display")
+        arrived.step(at: arrived.motionStart + 0.2)
+        expect(arrived.barHeights() == pose, "a display tick cannot replace a pose held for the arrival")
         window.holdsWave = true
         window.shown = false
         window.exposed = false
@@ -177,6 +179,12 @@ enum NotchEqualizerTests {
         window.notifyVisibility()
         expect(arrived.barHeights() == pose, "the first visible frame still shows the bars it covered")
         arrived.releasePose()
+        arrived.step(at: arrived.motionStart + 0.4)
+        expect(arrived.barHeights() != pose, "releasing an arrival pose resumes the shared wave")
+        arrived.adopt(heights: pose)
+        arrived.configure(animates: false, bars: 7, barWidth: 2, height: 20, tint: .white)
+        expect(!arrived.isMoving && arrived.barHeights().allSatisfy { $0 == 2 },
+               "pause or reduced motion releases a pose held for an arrival")
         window.holdsWave = false
         window.shown = false
         window.exposed = false
@@ -209,6 +217,23 @@ enum NotchEqualizerTests {
         expect(!wave.isMoving && (wave.layer?.sublayers ?? []).allSatisfy { $0.bounds.height == $0.bounds.width },
                "a window that is still away drops the wave once the display change lets it go")
         wave.removeFromSuperview()
+
+        // Use the production panel setter: releasing a hidden hold must stop
+        // its clock even if no later occlusion notification arrives.
+        let panel = NotchPanel(contentRect: CGRect(x: 0, y: 0, width: 80, height: 40),
+                               styleMask: .borderless, backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        let heldWave = NotchEqualizerView(frame: CGRect(x: 0, y: 0, width: 40, height: 20))
+        panel.contentView = heldWave
+        heldWave.configure(animates: true, bars: 7, barWidth: 2, height: 20, tint: .white)
+        expect(!heldWave.isMoving, "a production panel starts with its hidden wave stopped")
+        panel.holdsWave = true
+        expect(heldWave.isMoving, "a production relocation hold starts the hidden wave")
+        panel.holdsWave = false
+        expect(!heldWave.isMoving && heldWave.barHeights().allSatisfy { $0 == 2 },
+               "releasing the production hold stops the hidden wave without a visibility event")
+        panel.contentView = nil
+        panel.close()
 
         let swing = (0...40).map { NotchDecorativeClock.swing(Double($0) / 10) }
         expect(abs(swing[0]) < 1e-9 && abs(swing[10] - 1) < 1e-9 && abs(swing[20]) < 1e-9

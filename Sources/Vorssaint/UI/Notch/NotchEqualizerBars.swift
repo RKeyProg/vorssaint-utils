@@ -200,7 +200,7 @@ final class NotchEqualizerView: NSView {
         }
         // The pose already on the other display wins over a fresh reading,
         // including one made because the window just became visible.
-        if let pinned = pinnedHeights, pinned.count == bars.count, held || exposed {
+        if let pinned = pinnedHeights, pinned.count == bars.count, moving {
             for (index, bar) in bars.enumerated() { bar.bounds.size.height = pinned[index] }
         } else {
             pinnedHeights = nil
@@ -217,7 +217,7 @@ final class NotchEqualizerView: NSView {
     }
 
     func step(at time: CFTimeInterval) {
-        guard clock.isRunning else { return }
+        guard clock.isRunning, pinnedHeights == nil else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for (index, bar) in bars.enumerated() where index < swings.count {
